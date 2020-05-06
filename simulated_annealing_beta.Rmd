@@ -1,0 +1,143 @@
+```{r}
+generate_a_rand <- function(n) {
+    # Having a sd = 0.1 seems to keep eigenvalues < 1
+    matrix(rnorm(n*n, mean=0, sd=0.1), n, n)
+}
+generate_price_data_rand <- function(a.est, n, t, sigma) {
+    a <- a.est
+    st <- abs(rnorm(n, mean=0))
+    s <- st
+    for(i in 1:(t-1)) {
+        w <- rnorm(n, mean=0, sd=sigma)
+        st <- abs(a%*%st + w)
+        s <- cbind(s, st)
+    }
+    rownames(s) <- 1:n
+    t(s)
+}
+
+generate_g <- function(price.data, a.est) {
+    price.data <- as.matrix(price.data)
+    sum <- 0
+    for(i in 2:nrow(price.data)) {
+        sum <- sum + (price.data[i,] - 
+          a.est %*% price.data[i-1,]) %*% t(price.data[i,] - a.est %*% price.data[i-1,]) 
+    }
+    k.hat <- 1/(nrow(price.data)-1) * sum
+    g <- cov(price.data)
+    g <- g - k.hat 
+    g
+}
+
+```
+
+```{r} 
+a_sim <- generate_a_rand(10)
+price.data <- generate_price_data_rand(a_sim, 10, 250, 0.2)
+g_sim <- generate_g(price.data, a_sim)
+```
+
+
+```{r}
+# changed from 0.8 to 0.9
+temp <- function(t) {
+ 0.9 ^ t
+}
+
+P <- function(w, wnew, temp) {
+    ret <- 0
+    if(Re(wnew) > Re(w)) {
+        ret <- 1
+    }
+    else {
+        ret <- exp(-(w - wnew) / temp)
+    }
+    ret
+}
+
+stop <- function(reject, k, curtemp) {
+    stop <- FALSE
+    if(curtemp < 10e-8 || k > 10000 || reject > 500) {
+        stop <- TRUE
+    }
+    stop
+}
+```
+
+```{r}
+normalize <- function(x)
+{
+    return((x- min(x)) /(max(x)-min(x)))
+}
+
+neighbour<-function(x, Temp, L)
+{
+  n<-length(x)
+  newDim<-sample(1:n,L)
+  delta<-rnorm(L)*Temp #formula according to paper
+  nonZero<-x[x!=0] #find the nonzero
+  newW <- x
+  newW[newDim]<-delta + x[newDim] #changes the values by delta and reshuffles the order
+  #newW <- newW/max(1, max(abs(newW)))
+  newW <- normalize(newW)
+  newW <- newW / sum(newW)
+  print(newW)
+  newW
+}
+
+annealobj<-function(w,A,G)
+{
+  -(w%*%A%*%G%*%A%*%w)/(w%*%G%*%w) 
+}
+
+
+```
+
+```{r}
+neighbor_i <- neighbour(rep(0.1,10), 1, 3)
+print(sum(neighbor_i))
+```
+
+
+```{r}
+method.simulated.annealing <- function(init_sol, L, A, G) {
+    # s <- Greedy_sol(price.data, L)
+    s <- init_sol
+    e <- annealobj(s, A, G)
+    sbest <- s
+    ebest <- e
+    k <- 0 # k is the energy evaluation count
+    reject <- 0 # consecutive rejections
+    curtemp <- 1 # current temperature
+    while(!stop(reject, k, curtemp)) {
+        snew <- neighbour(s, curtemp, L)
+        enew <- annealobj(snew, A, G)
+        curtemp <- temp(k)
+        print(curtemp)
+        if(Re(P(e, enew, curtemp)) > rnorm(1)) {
+            s <- snew
+            e <- enew
+            reject <- 0
+        }
+        else {
+            reject <- reject + 1
+        }
+        if(Re(enew) > Re(ebest)) {
+            sbest <- snew;
+            ebest <- enew;
+        }
+        k <- k + 1
+    }
+    sbest
+}
+
+
+
+```
+
+```{r}
+sol_simulated <- method.simulated.annealing(rep(0.1, 10), 3, a_sim, g_sim)
+print(sol_simulated)
+```
+
+
