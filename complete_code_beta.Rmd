@@ -149,32 +149,6 @@ exhaustive_search <- function(a,g,l) {
 }
 ```
 
-
-
-```{r}
-# -------------- Greedy Method --------------
-greedy <- function(a,g,l) {
-  n <- ncol(a)
-  opt <- 0
-  x <- c()
-  if(l>n){
-    ret(-1)
-  }
-  #while(length(x)<l){
-    for(i in 1:n){
-      curr_a <- a[,combinations[,i]]
-      curr_g <- g[,combinations[,i]]
-      curr_aga <- curr_a %*% curr_g %*% t(curr_a)
-      curr_opt <- estimate_eigen(curr_aga,curr_g)
-      if(curr_opt[1]>opt[1]){
-        opt <- curr_opt
-      }
-    }
-  #}
-}
-```
-
-
 ```{r}
 # -------------- Truncation Method --------------
 calculate.eigen <- function(a.est, g.est, cols) {
