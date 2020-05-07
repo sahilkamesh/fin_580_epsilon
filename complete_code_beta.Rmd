@@ -1,0 +1,348 @@
+```{r}
+library(readxl)
+data <- read_excel("2015 train sample.xlsx")
+data <- as.matrix(data)
+```
+
+
+```{r}
+# ------------------ Estimation of VAR(1) Parameters ------------------
+
+# Estimate Recursion Matrix A
+#
+# Load corpcor library for pseudoinverse function
+library("corpcor")
+estimate_a <- function(s) {
+  n <- ncol(s)
+  #print(n)
+  m <- nrow(s)
+  #print(m)
+  mat1 <- matrix(0,n,n)
+  mat2 <- matrix(0,n,n)
+  # Calculate the two summation matrices
+  for(t in 2:m) {
+    t1_iter = s[t,] %*% t(s[t-1,])
+    mat1 <- mat1 + t1_iter
+    t2_iter = s[t-1,] %*% t(s[t-1,]) 
+    mat2 <- mat2 + t2_iter
+  }
+  # Take the Moore-Penrose pseudoinverse of the second matrix
+  mpi <- pseudoinverse(mat2)
+  # Multiply the matrices
+  a <- mat1 %*% mpi
+  # cat("\n")
+  # print(nrow(a))
+  # print(ncol(a))
+  return(a)
+}
+
+# Estimate Sigma
+#
+estimate_sigma <- function(s,a) {
+  n <- ncol(s)
+  m <- nrow(s)
+  coeff <- 1/(n*(m-1))
+  summation <- 0
+  for(t in 2:m) {
+    iter <- ((s[t,] - (a %*% s[t-1,]))^2)
+    summation <- summation + iter
+  }
+  sigma <- sqrt(coeff*summation)
+  return(sigma)
+}
+
+# Estimate Covariance Matrix K of Noise
+#
+estimate_k <- function(s,a) {
+  n <- ncol(s)
+  m <- nrow(s)
+  summation <- 0
+  coeff <- 1/(m-1)
+  for(t in 2:m) {
+    # print(nrow(t(s[t-1,])))
+    # print(ncol(t(s[t-1,])))
+    iter <- (s[t,] - (a %*% s[t-1,]))
+    summation <- summation + (iter %*% t(iter))
+  }
+  k = coeff * summation
+  return(k)
+}
+
+# Estimate stationary covariance matrix G 
+#
+# For now, we assume Delta = 0.1, iteration # = 1000. 
+# TODO: figure out how to choose these constants
+#
+estimate_g <- function(s,k,a) {
+  # Take G(0) as sample covariance matrix
+  g <- cov(s)
+  delta <- 0.1
+  iter_len <- 1000
+  for(i in 1:iter_len) {
+    g <- g - delta * (g - (a %*% g %*% t(a)) - k)
+  }
+  return(g)
+}
+```
+
+```{r}
+a <- estimate_a(data)
+# cat("\n")
+# print(a)
+
+sigma <- estimate_sigma(data,a)
+# cat("\n")
+# print(sigma)
+
+k <- estimate_k(data,a)
+# cat("\n")
+# print(k)
+
+g <- estimate_g(data,k,a)
+
+```
+
+```{r}
+# -------------------- Portfolio Selection Methods --------------------
+
+# Generalized Eigenvalue Problem
+# ------------------------------
+# AGA(T)x = (lambda)Gx,
+# where lambda is the mean reversion parameter
+#
+# solve(a,b,...) solves the equation a %*% x = b for x
+#
+# eigen(x) computes the eigenvalues and eigenvectors of x
+# Returns a list with components:
+#   values  - a vector containing the eigenvalues of x in decreasing order
+#   vectors - a matrix whose columns contain the eigenvectors of x 
+#
+# estimate_eigen <- function(a,g) {
+#   aga <- a %*% g %*% t(a)
+#   s <- solve(g,aga)
+#   eigen_ret <- eigen(s)
+#   cat("\n")
+#   # print("eigen ret")
+#   # print(eigen_ret)
+#   eigenvalue <- eigen_ret$values[1]
+#   eigenvector <- eigen_ret$vectors[1]
+#   c(eigen_ret$value[1],eigen_ret$vectors[1])
+# }
+estimate_eigen <- function(a,b) {
+  s <- solve(b,a)
+  eigen_ret <- eigen(s)
+  eigenvalue <- eigen_ret$values[1]
+  eigenvector <- eigen_ret$vectors[1]
+  c(eigenvalue,eigenvector)
+}
+
+
+
+# -------------- Constrained Optimization Problem --------------
+# 
+#         x(opt) =  arg max     (x(T)AGA(T)x)/(x(T)Gx
+#               x(E)R^n,card(x)<=L
+#
+# We explore 4 methods of solving this problem - 
+# Exhaustive Search, Greedy Method, Truncation Method and Simulated Annealing
+```
+
+```{r}
+# -------------- Exhaustive Search Method --------------
+# Brute force method of constructing all L-dimensional submatrices of G 
+# and AGA(T) and solving each corresponding eigenvalue problem
+#
+exhaustive_search <- function(a,g,l) {
+  combinations <- combn(1:ncol(a),l)
+  iter_len = ncol(combinations)
+  opt <- 0
+  for(i in 1:iter_len) {
+    # cat("\n")
+    # print(a[combinations[,i],combinations[,i]])
+    curr_a <- a[combinations[,i],combinations[,i]]
+    curr_g <- g[combinations[,i],combinations[,i]]
+    curr_aga <- curr_a %*% curr_g %*% t(curr_a)
+    curr_opt <- estimate_eigen(curr_aga,curr_g)
+    # cat("\n")
+    # print("Curr_opt[1]")
+    # print(curr_opt[1])
+    # cat("\n")
+    # print("opt[1]")
+    # print(opt[1])
+    if(curr_opt[1]>opt[1]){
+      opt <- curr_opt
+    }
+  }
+  opt
+}
+```
+
+
+
+```{r}
+# -------------- Greedy Method --------------
+greedy <- function(a,g,l) {
+  n <- ncol(a)
+  opt <- 0
+  x <- c()
+  if(l>n){
+    ret(-1)
+  }
+  #while(length(x)<l){
+    for(i in 1:n){
+      curr_a <- a[,combinations[,i]]
+      curr_g <- g[,combinations[,i]]
+      curr_aga <- curr_a %*% curr_g %*% t(curr_a)
+      curr_opt <- estimate_eigen(curr_aga,curr_g)
+      if(curr_opt[1]>opt[1]){
+        opt <- curr_opt
+      }
+    }
+  #}
+}
+```
+
+
+```{r}
+# -------------- Truncation Method --------------
+calculate.eigen <- function(a.est, g.est, cols) {
+    AGAt <- as.matrix(a.est) %*% g.est %*% t(a.est)
+    sol <- eigen(solve(g.est,AGAt))
+    x <- rep(0, ncol(a.est))
+    x <- Re(x + sol$vectors[,1])
+    x <- ((x- min(x)) /(max(x)-min(x)))
+    x <- x / sum(x)
+}
+
+truncated.search <- function(a.est, g.est, L) {
+    x_opt <- calculate.eigen(a.est, g.est, ncol(a.est))
+    w <- Re(calculate.eigen(a.est, g.est, order(x_opt,decreasing=TRUE)[1:L]))
+    coefficient <-  (w%*%a.est%*%g.est%*%a.est%*%w)/(w%*%g.est%*%w) 
+    c(coefficient, w)
+}
+
+```
+
+
+
+```{r}
+# -------------- Simulated Annealing Method --------------
+# changed from 0.8 to 0.9
+temp <- function(t) {
+ 0.9 ^ t
+}
+
+P <- function(w, wnew, temp) {
+    ret <- 0
+    if(Re(wnew) > Re(w)) {
+        ret <- 1
+    }
+    else {
+        ret <- exp(-(w - wnew) / temp)
+    }
+    ret
+}
+
+stop <- function(reject, k, curtemp) {
+    stop <- FALSE
+    if(curtemp < 10e-8 || k > 10000 || reject > 500) {
+        stop <- TRUE
+    }
+    stop
+}
+
+normalize <- function(x)
+{
+    return((x- min(x)) /(max(x)-min(x)))
+}
+
+neighbour<-function(x, Temp, L)
+{
+  n<-length(x)
+  newDim<-sample(1:n,L)
+  delta<-rnorm(L)*Temp #formula according to paper
+  nonZero<-x[x!=0] #find the nonzero
+  newW <- x
+  newW[newDim]<-delta + x[newDim] #changes the values by delta and reshuffles the order
+  #newW <- newW/max(1, max(abs(newW)))
+  newW <- normalize(newW)
+  newW <- newW / sum(newW)
+  # cat('proposed:')
+  # print(newW)
+  newW
+}
+
+annealobj<-function(w,A,G)
+{
+  -(w%*%A%*%G%*%A%*%w)/(w%*%G%*%w) 
+}
+
+method.simulated.annealing <- function(init_sol, L, A, G) {
+    # s <- Greedy_sol(price.data, L)
+    s <- init_sol
+    e <- annealobj(s, A, G)
+    sbest <- s
+    ebest <- e
+    k <- 0 # k is the energy evaluation count
+    reject <- 0 # consecutive rejections
+    curtemp <- 1 # current temperature
+    while(!stop(reject, k, curtemp)) {
+        snew <- neighbour(s, curtemp, L)
+        enew <- annealobj(snew, A, G)
+        curtemp <- temp(k)
+        #cat('temp:')
+        #print(curtemp)
+        if(Re(P(e, enew, curtemp)) > rnorm(1)) {
+            s <- snew
+            e <- enew
+            reject <- 0
+        }
+        else {
+            reject <- reject + 1
+        }
+        if(Re(enew) < Re(ebest)) {
+            sbest <- snew;
+            ebest <- enew;
+        }
+        k <- k + 1
+    }
+    c(-ebest, sbest)
+}
+
+
+
+```
+
+```{r}
+# --------------------------------------------------
+# -------------- Performance Analysis --------------
+# --------------------------------------------------
+L = 3
+```
+
+```{r}
+# -------------- Exhaustive Search Method --------------
+sol_exhaustive <- exhaustive_search(a, g, L)
+cat('solution from exhaustive search', sol_exhaustive)
+```
+
+
+```{r}
+# -------------- Truncation Method --------------
+sol_truncation <- truncated.search(a, g, L)
+
+cat('mean-reverting coefficient from truncated search', sol_truncation[1], '\n')
+cat('weight from truncated search', sol_truncation[-1])
+```
+
+
+```{r}
+# -------------- Simulated Annealing Method --------------
+# initial solution starts from the truncation method
+sol_simulated <- method.simulated.annealing(sol_truncation[-1], L, a, g)
+cat('mean-reverting coefficient from simulated annealing', sol_simulated[1], '\n')
+cat('weight from simulated annealing', sol_simulated[-1])
+
+```
+
+
