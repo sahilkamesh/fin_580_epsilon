@@ -163,7 +163,7 @@ calculate.eigen <- function(a.est, g.est, cols) {
 truncated.search <- function(a.est, g.est, L) {
     x_opt <- calculate.eigen(a.est, g.est, ncol(a.est))
     w <- Re(calculate.eigen(a.est, g.est, order(x_opt,decreasing=TRUE)[1:L]))
-    coefficient <-  (w%*%a.est%*%g.est%*%a.est%*%w)/(w%*%g.est%*%w) 
+    coefficient <-  abs((w%*%a.est%*%g.est%*%a.est%*%w)/(w%*%g.est%*%w))
     c(coefficient, w)
 }
 
