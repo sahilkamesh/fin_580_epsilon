@@ -1,9 +1,8 @@
 ```{r}
 library(readxl)
-data <- read_excel("2015 train sample.xlsx")
+data <- read_excel("final_train.xlsx")
 data <- as.matrix(data)
 ```
-
 
 ```{r}
 # ------------------ Estimation of VAR(1) Parameters ------------------
@@ -14,9 +13,7 @@ data <- as.matrix(data)
 library("corpcor")
 estimate_a <- function(s) {
   n <- ncol(s)
-  #print(n)
   m <- nrow(s)
-  #print(m)
   mat1 <- matrix(0,n,n)
   mat2 <- matrix(0,n,n)
   # Calculate the two summation matrices
@@ -30,9 +27,6 @@ estimate_a <- function(s) {
   mpi <- pseudoinverse(mat2)
   # Multiply the matrices
   a <- mat1 %*% mpi
-  # cat("\n")
-  # print(nrow(a))
-  # print(ncol(a))
   return(a)
 }
 
@@ -116,17 +110,6 @@ g <- estimate_g(data,k,a)
 # Returns a list with components:
 #   values  - a vector containing the eigenvalues of x in decreasing order
 #   vectors - a matrix whose columns contain the eigenvectors of x 
-#
-# estimate_eigen <- function(a,g) {
-#   aga <- a %*% g %*% t(a)
-#   s <- solve(g,aga)
-#   eigen_ret <- eigen(s)
-#   cat("\n")
-#   # print("eigen ret")
-#   # print(eigen_ret)
-#   eigenvalue <- eigen_ret$values[1]
-#   eigenvector <- eigen_ret$vectors[1]
-#   c(eigen_ret$value[1],eigen_ret$vectors[1])
 # }
 estimate_eigen <- function(a,b) {
   s <- solve(b,a)
@@ -136,8 +119,6 @@ estimate_eigen <- function(a,b) {
   c(eigenvalue,eigenvector)
 }
 
-
-
 # -------------- Constrained Optimization Problem --------------
 # 
 #         x(opt) =  arg max     (x(T)AGA(T)x)/(x(T)Gx
@@ -146,7 +127,6 @@ estimate_eigen <- function(a,b) {
 # We explore 4 methods of solving this problem - 
 # Exhaustive Search, Greedy Method, Truncation Method and Simulated Annealing
 ```
-
 ```{r}
 # -------------- Exhaustive Search Method --------------
 # Brute force method of constructing all L-dimensional submatrices of G 
@@ -157,18 +137,10 @@ exhaustive_search <- function(a,g,l) {
   iter_len = ncol(combinations)
   opt <- 0
   for(i in 1:iter_len) {
-    # cat("\n")
-    # print(a[combinations[,i],combinations[,i]])
     curr_a <- a[combinations[,i],combinations[,i]]
     curr_g <- g[combinations[,i],combinations[,i]]
     curr_aga <- curr_a %*% curr_g %*% t(curr_a)
     curr_opt <- estimate_eigen(curr_aga,curr_g)
-    # cat("\n")
-    # print("Curr_opt[1]")
-    # print(curr_opt[1])
-    # cat("\n")
-    # print("opt[1]")
-    # print(opt[1])
     if(curr_opt[1]>opt[1]){
       opt <- curr_opt
     }

@@ -183,7 +183,7 @@ truncated.search <- function(a.est, g.est, L) {
 }
 
 library(readxl)
-data <- read_excel("2015 train sample.xlsx")
+data <- read_excel("final_train.xlsx")
 data <- as.matrix(data)
   
 a <- estimate_a(data)
@@ -191,8 +191,8 @@ a <- estimate_a(data)
 # print(a)
 
 sigma <- estimate_sigma(data,a)
-# cat("\n")
-# print(sigma)
+cat("\n")
+print(sigma)
 
 k <- estimate_k(data,a)
 # cat("\n")
