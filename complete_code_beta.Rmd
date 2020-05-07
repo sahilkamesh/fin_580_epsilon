@@ -329,19 +329,29 @@ cat('solution from exhaustive search', sol_exhaustive)
 
 ```{r}
 # -------------- Truncation Method --------------
+start.time <- Sys.time()
 sol_truncation <- truncated.search(a, g, L)
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+
 
 cat('mean-reverting coefficient from truncated search', sol_truncation[1], '\n')
 cat('weight from truncated search', sol_truncation[-1])
+cat('time spent through truncated search', time.taken)
 ```
 
 
 ```{r}
 # -------------- Simulated Annealing Method --------------
 # initial solution starts from the truncation method
+start.time <- Sys.time()
 sol_simulated <- method.simulated.annealing(sol_truncation[-1], L, a, g)
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+
 cat('mean-reverting coefficient from simulated annealing', sol_simulated[1], '\n')
 cat('weight from simulated annealing', sol_simulated[-1])
+cat('time spent through simulated annealing', time.taken)
 
 ```
 
